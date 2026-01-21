@@ -100,3 +100,120 @@ This chapter is complete when:
 - audit requirements are defined
 - no KPI logic is mixed into processing design
 
+---
+
+## Appendix A — Staging and Incremental Load Implementation
+
+### A.1 Purpose
+This appendix documents the **technical implementation** of the incremental data-processing rules defined in Chapter 4.
+
+While Chapter 4 specifies *what the processing layer must do* (incremental ingestion, idempotency, late-arriving data handling), this appendix explains *how those rules are implemented* using staging tables, audit tables, and a single execution interface.
+
+This appendix is intentionally implementation-focused and subordinate to the main chapter.
+
+---
+
+### A.2 Staging Layer Concept
+Staging tables represent **raw daily operational drops**. They simulate how data arrives from operational systems and are designed to be:
+
+- append-only  
+- replayable  
+- keyed by a logical `run_date`  
+- free of warehouse surrogate keys  
+
+All staging tables store **business identifiers and codes** (e.g. `order_id`, `sku`, `carrier_code`) to mirror real ingestion patterns.
+
+---
+
+### A.3 Staging Table Contracts
+The incremental pipeline expects the following staging inputs:
+
+- **stg_orders**  
+  Order header records for the processing date.
+
+- **stg_order_lines**  
+  Line-level order data including product and ordered quantity.
+
+- **stg_promises**  
+  Delivery promise updates per order line.
+
+- **stg_shipments**  
+  Shipment execution records, including carrier, warehouse, and origin–destination attributes.
+
+- **stg_shipment_lines**  
+  Mapping between shipments and order lines, enabling split and partial fulfillment.
+
+- **stg_tracking_events**  
+  Time-stamped operational events generated during warehouse handling and transport.
+
+Each staging table includes a `run_date` column that defines the logical processing date.
+
+---
+
+### A.4 Audit and Observability
+To demonstrate production discipline and enable traceability, the pipeline records metadata in audit tables:
+
+- **etl_run_audit**  
+  One row per pipeline execution, recording start time, end time, status, and error context.
+
+- **etl_table_audit**  
+  Row-count metrics per table per run, supporting verification and debugging.
+
+Audit records allow confirmation that:
+- the pipeline ran successfully  
+- reruns did not create duplicates  
+- changes in row counts are explainable  
+
+---
+
+### A.5 Daily Execution Interface
+The processing layer is executed through a single stored procedure.
+
+Example invocation:
+
+CALL sp_run_daily_load(p_run_date, p_reprocess_days);
+
+Parameters:
+- `p_run_date` — logical business date being processed  
+- `p_reprocess_days` — rolling window length for late-arriving data (default: 7)
+
+This procedure:
+1. initializes audit logging  
+2. upserts dimension records discovered in staging  
+3. upserts warehouse fact tables  
+4. inserts tracking events idempotently  
+5. finalizes audit status  
+
+This interface represents the **single operational entry point** to the data-processing layer.
+
+---
+
+### A.6 Idempotency Guarantees
+Idempotency is enforced as follows:
+
+- Fact tables use primary keys and unique constraints with upserts.  
+- Tracking events are inserted only if an identical event does not already exist.  
+- Reprocessing the same day multiple times produces the same warehouse state.  
+
+These guarantees allow safe reruns without data corruption.
+
+---
+
+### A.7 Late-Arriving Data Handling
+Late-arriving events and promise updates are handled using a **rolling reprocessing window**.
+
+On each run:
+- events whose `event_time` falls within the reprocessing window are reconsidered  
+- promise updates overwrite the active promise per order line  
+
+This approach balances correctness with performance and avoids full reloads.
+
+---
+
+### A.8 Scope Boundary
+This appendix does not define:
+- KPI calculations or analytical views  
+- data quality validation rules  
+- automation or scheduling mechanisms  
+
+Those concerns are addressed in subsequent chapters.
