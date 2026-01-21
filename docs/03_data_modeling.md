@@ -151,4 +151,193 @@ Constraints / Indexes:
 ### dim_service_level
 - `service_level_id` INT AUTO_INCREMENT PRIMARY KEY
 - `service_level_code` VARCHAR(20) NOT NULL UNIQUE
-- `service
+- `service_level_name` VARCHAR(50) NOT NULL
+- `promised_days` TINYINT NOT NULL
+
+---
+
+### dim_lane
+- `lane_id` INT AUTO_INCREMENT PRIMARY KEY
+- `origin_country` VARCHAR(60) NOT NULL
+- `origin_region` VARCHAR(60) NULL
+- `origin_city` VARCHAR(80) NOT NULL
+- `dest_country` VARCHAR(60) NOT NULL
+- `dest_region` VARCHAR(60) NULL
+- `dest_city` VARCHAR(80) NOT NULL
+- `distance_km` DECIMAL(8,2) NULL
+
+Constraints:
+- UNIQUE (`origin_country`,`origin_city`,`dest_country`,`dest_city`)
+
+---
+
+## 3.8 Facts (Physical Specification)
+
+### fact_orders
+**Grain:** 1 row per order  
+**Primary key:** `order_id` (BIGINT)
+
+Fields:
+- `order_id` BIGINT NOT NULL PRIMARY KEY
+- `customer_id` INT NOT NULL
+- `service_level_id` INT NOT NULL
+- `order_created_at` DATETIME NOT NULL
+- `order_status` VARCHAR(30) NOT NULL
+- `created_date_id` INT NOT NULL
+
+Indexes:
+- INDEX (`customer_id`)
+- INDEX (`service_level_id`)
+- INDEX (`created_date_id`)
+- INDEX (`order_created_at`)
+
+---
+
+### fact_order_lines
+**Grain:** 1 row per order line (order_id + line_number)  
+**Primary key:** `order_line_id` (BIGINT)
+
+Fields:
+- `order_line_id` BIGINT AUTO_INCREMENT PRIMARY KEY
+- `order_id` BIGINT NOT NULL
+- `line_number` INT NOT NULL
+- `product_id` INT NOT NULL
+- `ordered_qty` INT NOT NULL
+- `line_status` VARCHAR(30) NOT NULL
+- `order_line_created_at` DATETIME NOT NULL
+- `created_date_id` INT NOT NULL
+
+Constraints / Indexes:
+- UNIQUE (`order_id`,`line_number`)
+- INDEX (`order_id`)
+- INDEX (`product_id`)
+- INDEX (`created_date_id`)
+
+---
+
+### fact_promises
+**Grain:** 1 row per order line (v1: one active promise)  
+**Primary key:** `promise_id` (BIGINT)
+
+Fields:
+- `promise_id` BIGINT AUTO_INCREMENT PRIMARY KEY
+- `order_line_id` BIGINT NOT NULL UNIQUE
+- `promised_ship_date` DATE NOT NULL
+- `promised_delivery_date` DATE NOT NULL
+- `promise_updated_at` DATETIME NOT NULL
+- `promised_ship_date_id` INT NOT NULL
+- `promised_delivery_date_id` INT NOT NULL
+
+Indexes:
+- INDEX (`promised_delivery_date_id`)
+- INDEX (`promise_updated_at`)
+
+---
+
+### fact_shipments
+**Grain:** 1 row per shipment  
+**Primary key:** `shipment_id` (BIGINT)
+
+Fields:
+- `shipment_id` BIGINT NOT NULL PRIMARY KEY
+- `carrier_id` INT NOT NULL
+- `warehouse_id` INT NOT NULL
+- `lane_id` INT NOT NULL
+- `shipment_created_at` DATETIME NOT NULL
+- `actual_ship_at` DATETIME NULL
+- `created_date_id` INT NOT NULL
+
+Indexes:
+- INDEX (`carrier_id`)
+- INDEX (`warehouse_id`)
+- INDEX (`lane_id`)
+- INDEX (`created_date_id`)
+- INDEX (`shipment_created_at`)
+
+---
+
+### fact_shipment_lines
+**Grain:** 1 row per shipment line  
+**Primary key:** `shipment_line_id` (BIGINT)
+
+Fields:
+- `shipment_line_id` BIGINT AUTO_INCREMENT PRIMARY KEY
+- `shipment_id` BIGINT NOT NULL
+- `order_line_id` BIGINT NOT NULL
+- `shipped_qty` INT NOT NULL
+
+Constraints / Indexes:
+- UNIQUE (`shipment_id`,`order_line_id`)
+- INDEX (`shipment_id`)
+- INDEX (`order_line_id`)
+
+---
+
+### fact_tracking_events
+**Grain:** 1 row per tracking event  
+**Primary key:** `event_id` (BIGINT)
+
+Fields:
+- `event_id` BIGINT AUTO_INCREMENT PRIMARY KEY
+- `shipment_id` BIGINT NOT NULL
+- `event_type` VARCHAR(40) NOT NULL
+- `event_time` DATETIME NOT NULL
+- `ingested_at` DATETIME NOT NULL
+- `event_city` VARCHAR(80) NULL
+- `event_country` VARCHAR(60) NULL
+- `event_date_id` INT NOT NULL
+
+Indexes:
+- INDEX (`shipment_id`,`event_time`)
+- INDEX (`event_type`)
+- INDEX (`event_date_id`)
+- INDEX (`ingested_at`)
+
+---
+
+## 3.9 Foreign Keys (Physical)
+Foreign keys are required for analytical correctness and join safety:
+
+- `fact_orders.customer_id` → `dim_customer.customer_id`
+- `fact_orders.service_level_id` → `dim_service_level.service_level_id`
+- `fact_orders.created_date_id` → `dim_date.date_id`
+
+- `fact_order_lines.order_id` → `fact_orders.order_id`
+- `fact_order_lines.product_id` → `dim_product.product_id`
+- `fact_order_lines.created_date_id` → `dim_date.date_id`
+
+- `fact_promises.order_line_id` → `fact_order_lines.order_line_id`
+- `fact_promises.promised_ship_date_id` → `dim_date.date_id`
+- `fact_promises.promised_delivery_date_id` → `dim_date.date_id`
+
+- `fact_shipments.carrier_id` → `dim_carrier.carrier_id`
+- `fact_shipments.warehouse_id` → `dim_warehouse.warehouse_id`
+- `fact_shipments.lane_id` → `dim_lane.lane_id`
+- `fact_shipments.created_date_id` → `dim_date.date_id`
+
+- `fact_shipment_lines.shipment_id` → `fact_shipments.shipment_id`
+- `fact_shipment_lines.order_line_id` → `fact_order_lines.order_line_id`
+
+- `fact_tracking_events.shipment_id` → `fact_shipments.shipment_id`
+- `fact_tracking_events.event_date_id` → `dim_date.date_id`
+
+---
+
+## 3.10 Event Types (Controlled Vocabulary)
+A stable event vocabulary is required for KPI logic (v1):
+- `PICKED`
+- `PACKED`
+- `DISPATCHED`
+- `IN_TRANSIT`
+- `OUT_FOR_DELIVERY`
+- `DELIVERED`
+- `EXCEPTION`
+
+---
+
+## Chapter 3 — Definition of Done
+This chapter is complete when:
+- Conceptual and physical models are consistent
+- Every table has an explicit grain and key
+- Relationships are unambiguous and align to KPI grain (order-line)
+- The physical schema can be implemented without guessing
