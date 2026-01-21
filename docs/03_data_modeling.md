@@ -1,11 +1,10 @@
 # Data Modeling (Warehouse)
 
 ## 3.1 Purpose of This Layer
-This chapter defines how raw operational data is structured into an analytics-oriented warehouse model.
-The objective is to enable accurate OTIF and delivery performance analytics while preventing common errors such as double counting, grain mismatches, and ambiguous joins.
+This chapter defines how raw operational data is structured into an analytics-oriented warehouse model to support accurate delivery performance analysis, especially OTIF, while preventing double counting, grain mismatches, and ambiguous joins.
 
-The warehouse model is designed for:
-- consistent KPI computation
+The warehouse design must support:
+- OTIF computation at order-line level
 - flexible slicing (carrier, lane, warehouse, service level, customer)
 - event-based time analysis (sequencing and lead-time decomposition)
 - incremental, production-style processing
@@ -13,187 +12,143 @@ The warehouse model is designed for:
 ---
 
 ## 3.2 Modeling Approach
-The project uses an analytics-first warehouse design with:
+The project uses an analytics-first warehouse design with a clear separation between:
 - **Dimensions**: descriptive entities used for filtering and grouping
 - **Facts**: measurable operational records at explicit grains
 
-Key principle: **every fact table has one clearly defined grain**, and KPI calculations are performed at the appropriate grain.
+Key principle: **each fact table has exactly one grain**, and KPIs are computed at the appropriate grain.
 
 ---
 
-## 3.3 Grain Definitions (Authoritative)
-The following grains are used throughout the model:
-
-### Order (Header) Grain
+## 3.3 Authoritative Grains (Conceptual)
+### Order (Header)
 - **1 row = 1 customer order**
-- Contains customer, order date, service level, and high-level status attributes.
+- Stores customer, service level, creation timestamp, and order status.
 
-### Order Line Grain (Primary KPI Grain)
+### Order Line (Primary KPI Grain)
 - **1 row = 1 order line (order_id + line_number)**
-- Contains product, ordered quantity, and the unit of OTIF evaluation.
+- Stores product and ordered quantity.
+- OTIF is evaluated at this grain.
 
-### Shipment (Header) Grain
+### Shipment (Header)
 - **1 row = 1 shipment**
-- Represents the physical shipment execution, linked to carrier, origin warehouse, and destination.
+- Physical shipment execution linked to carrier, origin warehouse, and lane.
 
-### Shipment Line Grain
+### Shipment Line
 - **1 row = 1 shipment line**
-- Represents how much of a given order line is included in a given shipment (supports split/partial deliveries).
+- Quantity of an order line allocated to a shipment (supports split/partial fulfillment).
 
-### Tracking Event Grain
+### Tracking Event
 - **1 row = 1 tracking event**
-- Represents one time-stamped operational event associated with a shipment.
+- Time-stamped event associated with a shipment; can arrive late or out-of-order.
 
-### Promise Grain
-- **1 row = 1 promise per order line**
-- Stores committed ship and delivery dates for OTIF evaluation, including changes over time if needed.
+### Promise
+- **1 row = 1 active promise per order line (v1)**
+- Stores committed ship and delivery dates used for OTIF evaluation.
 
 ---
 
-## 3.4 Core Dimensions
-Dimensions provide stable descriptive context for slicing KPIs.
+## 3.4 Logical Entities
+### Dimensions (Logical)
+- Date
+- Customer
+- Product
+- Warehouse
+- Carrier
+- Lane (origin → destination)
+- Service Level
+
+### Facts (Logical)
+- Orders
+- Order Lines
+- Promises
+- Shipments
+- Shipment Lines
+- Tracking Events
+
+---
+
+## 3.5 Conceptual Relationship Rules
+- One order → many order lines  
+- One order → many shipments  
+- One shipment → many shipment lines  
+- One order line → many shipment lines  
+- One shipment → many tracking events  
+- One order line → one active promise (v1)
+
+Design constraint: OTIF must be computed at **order-line grain**; shipment-level computation requires careful aggregation and is not used as the primary KPI grain.
+
+---
+
+## 3.6 Physical Schema Conventions (MySQL)
+- Surrogate keys use `*_id` (INT or BIGINT depending on scale).
+- Business identifiers are preserved (e.g., `order_id`, `shipment_id`) and used as primary keys where appropriate.
+- Timestamps use `DATETIME`.
+- Quantities use `INT` in v1 (upgradeable to `DECIMAL` if needed).
+
+---
+
+## 3.7 Dimensions (Physical Specification)
 
 ### dim_date
-Purpose: time slicing and rolling windows.
+**Grain:** 1 row per calendar date  
+**Primary key:** `date_id` (INT, YYYYMMDD)
 
-Key fields (conceptual):
-- date_id, calendar_date, year, month, week, day_of_week, is_weekend
+Fields:
+- `date_id` INT NOT NULL
+- `calendar_date` DATE NOT NULL
+- `year` SMALLINT NOT NULL
+- `month` TINYINT NOT NULL
+- `month_name` VARCHAR(12) NOT NULL
+- `week_of_year` TINYINT NOT NULL
+- `day_of_month` TINYINT NOT NULL
+- `day_of_week` TINYINT NOT NULL
+- `is_weekend` BOOLEAN NOT NULL
+
+Constraints / Indexes:
+- PRIMARY KEY (`date_id`)
+- UNIQUE (`calendar_date`)
+
+---
 
 ### dim_customer
-Purpose: customer segmentation.
+- `customer_id` INT AUTO_INCREMENT PRIMARY KEY
+- `customer_code` VARCHAR(20) NOT NULL UNIQUE
+- `customer_name` VARCHAR(120) NOT NULL
+- `customer_segment` VARCHAR(50) NULL
+- `country` VARCHAR(60) NULL
+- `region` VARCHAR(60) NULL
 
-Key fields:
-- customer_id, customer_name, customer_segment, country/region
+---
 
 ### dim_product
-Purpose: product-level analysis.
+- `product_id` INT AUTO_INCREMENT PRIMARY KEY
+- `sku` VARCHAR(30) NOT NULL UNIQUE
+- `product_name` VARCHAR(120) NOT NULL
+- `product_category` VARCHAR(60) NULL
+- `uom` VARCHAR(20) NULL
 
-Key fields:
-- product_id, sku, product_category, unit_of_measure
+---
 
 ### dim_warehouse
-Purpose: warehouse operations slicing.
+- `warehouse_id` INT AUTO_INCREMENT PRIMARY KEY
+- `warehouse_code` VARCHAR(20) NOT NULL UNIQUE
+- `warehouse_name` VARCHAR(120) NOT NULL
+- `country` VARCHAR(60) NULL
+- `region` VARCHAR(60) NULL
+- `city` VARCHAR(80) NULL
 
-Key fields:
-- warehouse_id, warehouse_name, city/region, warehouse_type
+---
 
 ### dim_carrier
-Purpose: carrier performance slicing.
+- `carrier_id` INT AUTO_INCREMENT PRIMARY KEY
+- `carrier_code` VARCHAR(20) NOT NULL UNIQUE
+- `carrier_name` VARCHAR(120) NOT NULL
+- `carrier_type` VARCHAR(50) NULL
 
-Key fields:
-- carrier_id, carrier_name, carrier_type
-
-### dim_lane
-Purpose: origin-destination performance slicing.
-
-Key fields:
-- lane_id, origin_region, destination_region, distance_km (if available)
+---
 
 ### dim_service_level
-Purpose: SLA definitions.
-
-Key fields:
-- service_level_id, service_level_name (Standard/Express), promised_days
-
----
-
-## 3.5 Core Facts (Warehouse Tables)
-
-### fact_orders
-Grain: 1 row per order.
-
-Contains:
-- order identifiers
-- customer reference
-- order date
-- service level reference
-- order status (created/cancelled/closed)
-
-### fact_order_lines
-Grain: 1 row per order line.
-
-Contains:
-- product reference
-- ordered quantity
-- line status
-
-This is the **primary grain** for OTIF evaluation.
-
-### fact_promises
-Grain: 1 row per order line promise.
-
-Contains:
-- promised_ship_date
-- promised_delivery_date
-- promise_version or effective dates (if promise updates are modeled)
-
-### fact_shipments
-Grain: 1 row per shipment.
-
-Contains:
-- carrier reference
-- origin warehouse
-- destination lane
-- shipment creation date
-- actual ship date (if available)
-
-### fact_shipment_lines
-Grain: 1 row per shipment line.
-
-Contains:
-- link to order line
-- shipped quantity (supports partial/split fulfillment)
-
-### fact_tracking_events
-Grain: 1 row per event.
-
-Contains:
-- shipment reference
-- event type
-- event timestamp
-- event location (optional)
-- ingestion timestamp (optional, for late-arrival analysis)
-
----
-
-## 3.6 Relationship Rules (Conceptual)
-The following relationships are central to analytical correctness:
-
-- **fact_orders** 1-to-many **fact_order_lines**
-- **fact_order_lines** 1-to-many **fact_shipment_lines**
-- **fact_shipments** 1-to-many **fact_shipment_lines**
-- **fact_shipments** 1-to-many **fact_tracking_events**
-- **fact_order_lines** 1-to-1 **fact_promises** (for v1)
-
-Important note: OTIF is evaluated at **order-line grain** and must not be computed directly at shipment grain without careful aggregation.
-
----
-
-## 3.7 OTIF Computation Implications (Design Constraints)
-The model must support:
-
-- On-time evaluation: delivered date vs promised delivery date
-- In-full evaluation: sum(delivered_qty) vs ordered_qty at order-line level
-- Handling split shipments: multiple shipment lines per order line
-- Delivery confirmation: derived from tracking events (delivered) or shipment completion logic
-
----
-
-## 3.8 Non-Goals for This Chapter
-This chapter does not define:
-- how incremental loading is performed
-- how late-arriving events are handled technically
-- KPI queries and views
-- data quality checks
-
-Those belong to Chapters 4–6.
-
----
-
-## Chapter 3 — Definition of Done
-This chapter is complete when:
-- Each fact and dimension has a clear purpose and grain
-- Relationships between tables are explicit and consistent
-- The model supports OTIF evaluation at order-line level
-- No processing or KPI logic is mixed into modeling decisions
-
+- `service_level_id` INT AUTO_INCREMENT PRIMARY KEY
+- `service_level_code` VARCHAR(20) NOT NULL UNIQUE
+- `service
