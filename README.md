@@ -12,4 +12,4 @@ It focuses on:
 - Incremental, production-style data processing
 
 The project follows a lifecycle-based analytics design, from business problem
-definition to automation and interview readiness.
+definition to automation.
