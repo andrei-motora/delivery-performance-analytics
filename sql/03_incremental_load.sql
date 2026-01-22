@@ -2,9 +2,6 @@
 -- 03_incremental_load.sql
 -- Creates staging + audit tables and a stored procedure for daily incremental loads
 
--- Requires:
---   sql/01_schema.sql (warehouse tables)
---   sql/02_seed_dimensions.sql (at least service levels + dates)
 
 -- ============================================================
 -- 1) Audit tables
