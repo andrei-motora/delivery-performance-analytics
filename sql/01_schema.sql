@@ -2,10 +2,7 @@
 -- 01_schema.sql
 -- Creates the warehouse schema (dimensions + facts) per docs/03_data_modeling.md
 
--- Recommended: run in a dedicated database/schema.
--- Example:
--- CREATE DATABASE delivery_performance_analytics;
--- USE delivery_performance_analytics;
+
 
 SET FOREIGN_KEY_CHECKS = 0;
 
