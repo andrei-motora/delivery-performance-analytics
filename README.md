@@ -22,6 +22,15 @@ This project solves a common business problem in logistics: **measuring On-Time 
 - ETL Design Patterns
 
 ---
+## Skills Demonstrated
+
+- **Data Modeling**: Star schema design, fact/dimension separation, grain definition
+- **SQL Development**: Complex queries, CTEs, aggregations, stored procedures
+- **ETL Design**: Staging patterns, idempotent loads, error handling, audit logging
+- **Data Quality**: Validation rules, referential integrity checks, risk assessment
+- **Documentation**: Clear technical writing for both technical and business audiences
+
+---
 
 ## Business Context
 
@@ -329,16 +338,6 @@ SELECT * FROM dq_kpi_risk_summary;
 ├── diagrams/                      # Architecture diagrams
 └── README.md
 ```
-
----
-
-## Skills Demonstrated
-
-- **Data Modeling**: Star schema design, fact/dimension separation, grain definition
-- **SQL Development**: Complex queries, CTEs, aggregations, stored procedures
-- **ETL Design**: Staging patterns, idempotent loads, error handling, audit logging
-- **Data Quality**: Validation rules, referential integrity checks, risk assessment
-- **Documentation**: Clear technical writing for both technical and business audiences
 
 ---
 
