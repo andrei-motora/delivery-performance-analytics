@@ -13,6 +13,7 @@ This project solves a common business problem in logistics: **measuring On-Time 
 - **KPI analytics layer** with pre-built views for business reporting
 - **Data quality framework** to ensure metric trustworthiness
 - **Sample data generator** producing realistic test data with configurable parameters
+- **Tableau-ready views** optimized for visualization and dashboarding
 
 ### Technologies Used
 
@@ -20,14 +21,15 @@ This project solves a common business problem in logistics: **measuring On-Time 
 - SQL (DDL, DML, CTEs, Window Functions, Stored Procedures)
 - Dimensional Modeling (Star Schema)
 - ETL Design Patterns
+- Tableau (Data Visualization)
 
----
-## Skills Demonstrated
+### Skills Demonstrated
 
 - **Data Modeling**: Star schema design, fact/dimension separation, grain definition
 - **SQL Development**: Complex queries, CTEs, aggregations, stored procedures
 - **ETL Design**: Staging patterns, idempotent loads, error handling, audit logging
 - **Data Quality**: Validation rules, referential integrity checks, risk assessment
+- **Data Visualization**: Tableau dashboards, denormalized views for reporting
 - **Documentation**: Clear technical writing for both technical and business audiences
 
 ---
@@ -93,6 +95,21 @@ In logistics and e-commerce, delivery performance directly impacts customer sati
 │  │ vw_warehouse_performance│     │ dq_shipment_line_integrity │ │
 │  │ vw_lane_performance    │      │ dq_kpi_risk_summary        │ │
 │  └────────────────────────┘      └────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    VISUALIZATION LAYER                          │
+│                                                                 │
+│   TABLEAU VIEWS                                                 │
+│  ┌────────────────────────────────────────────────────────────┐ │
+│  │ vw_tableau_order_delivery    (main denormalized fact)      │ │
+│  │ vw_tableau_daily_metrics     (time series)                 │ │
+│  │ vw_tableau_carrier_metrics   (carrier performance)         │ │
+│  │ vw_tableau_warehouse_metrics (warehouse performance)       │ │
+│  │ vw_tableau_lane_metrics      (lane performance)            │ │
+│  │ vw_tableau_data_quality      (monitoring)                  │ │
+│  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -195,6 +212,24 @@ END AS is_otif
 
 ---
 
+## Tableau Visualization Layer
+
+Denormalized views optimized for Tableau dashboards:
+
+| View | Purpose | Use Case |
+|------|---------|----------|
+| `vw_tableau_order_delivery` | Main fact table with all dimensions | Primary data source for most charts |
+| `vw_tableau_daily_metrics` | Pre-aggregated daily KPIs | Time series charts |
+| `vw_tableau_carrier_metrics` | Carrier performance over time | Carrier comparison dashboards |
+| `vw_tableau_warehouse_metrics` | Warehouse performance over time | Warehouse analysis |
+| `vw_tableau_lane_metrics` | Lane performance over time | Geographic analysis |
+| `vw_tableau_customer_metrics` | Customer segment performance | Customer insights |
+| `vw_tableau_service_level_metrics` | Standard vs Express comparison | Service tier analysis |
+| `vw_tableau_tracking_events` | Shipment journey details | Event flow visualization |
+| `vw_tableau_data_quality` | Data quality issues summary | Monitoring dashboard |
+
+---
+
 ## Data Quality Framework
 
 Proactive data quality checks ensure trustworthy metrics:
@@ -216,6 +251,7 @@ Proactive data quality checks ensure trustworthy metrics:
 ### Prerequisites
 
 - MySQL 8.0 or higher
+- Tableau Desktop (for visualization)
 
 ### Quick Start
 
@@ -239,6 +275,9 @@ mysql -u <user> -p <database> < sql/05_data_quality_checks.sql
 
 # 6. Load sample data (optional)
 mysql -u <user> -p <database> < sql/06_sample_data.sql
+
+# 7. Create Tableau views (optional)
+mysql -u <user> -p <database> < sql/07_tableau_views.sql
 ```
 
 ---
@@ -334,8 +373,12 @@ SELECT * FROM dq_kpi_risk_summary;
 │   ├── 03_incremental_load.sql    # Staging tables + ETL stored procedure
 │   ├── 04_kpi_views.sql           # Analytics views for OTIF metrics
 │   ├── 05_data_quality_checks.sql # Data quality validation views
-│   └── 06_sample_data.sql         # Sample data generator
-├── diagrams/                      # Architecture diagrams
+│   ├── 06_sample_data.sql         # Sample data generator
+│   └── 07_tableau_views.sql       # Denormalized views for Tableau
+├── tableau/
+│   └── delivery_dashboard.twbx    # Tableau workbook
+├── diagrams/
+│   └── architecture.png
 └── README.md
 ```
 
