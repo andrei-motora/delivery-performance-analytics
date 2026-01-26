@@ -14,6 +14,7 @@ This project solves a common business problem in logistics: **measuring On-Time 
 - **Data quality framework** to ensure metric trustworthiness
 - **Sample data generator** producing realistic test data with configurable parameters
 - **Tableau-ready views** optimized for visualization and dashboarding
+- **Interactive Tableau dashboard** for executive and operational reporting
 
 ### Technologies Used
 
@@ -21,7 +22,7 @@ This project solves a common business problem in logistics: **measuring On-Time 
 - SQL (DDL, DML, CTEs, Window Functions, Stored Procedures)
 - Dimensional Modeling (Star Schema)
 - ETL Design Patterns
-- Tableau (Data Visualization)
+- Tableau Desktop (Data Visualization)
 
 ### Skills Demonstrated
 
@@ -99,17 +100,9 @@ In logistics and e-commerce, delivery performance directly impacts customer sati
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    VISUALIZATION LAYER                          │
+│                    TABLEAU DASHBOARD                            │
 │                                                                 │
-│   TABLEAU VIEWS                                                 │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │ vw_tableau_order_delivery    (main denormalized fact)      │ │
-│  │ vw_tableau_daily_metrics     (time series)                 │ │
-│  │ vw_tableau_carrier_metrics   (carrier performance)         │ │
-│  │ vw_tableau_warehouse_metrics (warehouse performance)       │ │
-│  │ vw_tableau_lane_metrics      (lane performance)            │ │
-│  │ vw_tableau_data_quality      (monitoring)                  │ │
-│  └────────────────────────────────────────────────────────────┘ │
+│  Executive KPIs + Operational Analytics + Geographic Insights   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,21 +205,51 @@ END AS is_otif
 
 ---
 
-## Tableau Visualization Layer
+## Tableau Dashboard
 
-Denormalized views optimized for Tableau dashboards:
+![Dashboard Screenshot](assets/OTIF_dashboard.png)
 
-| View | Purpose | Use Case |
-|------|---------|----------|
-| `vw_tableau_order_delivery` | Main fact table with all dimensions | Primary data source for most charts |
-| `vw_tableau_daily_metrics` | Pre-aggregated daily KPIs | Time series charts |
-| `vw_tableau_carrier_metrics` | Carrier performance over time | Carrier comparison dashboards |
-| `vw_tableau_warehouse_metrics` | Warehouse performance over time | Warehouse analysis |
-| `vw_tableau_lane_metrics` | Lane performance over time | Geographic analysis |
-| `vw_tableau_customer_metrics` | Customer segment performance | Customer insights |
-| `vw_tableau_service_level_metrics` | Standard vs Express comparison | Service tier analysis |
-| `vw_tableau_tracking_events` | Shipment journey details | Event flow visualization |
-| `vw_tableau_data_quality` | Data quality issues summary | Monitoring dashboard |
+An interactive dashboard providing executive KPIs and operational insights for delivery performance analysis.
+
+### Dashboard Components
+
+**Executive KPIs (Top Row)**
+- **OTIF Rate**: Overall on-time in-full performance (target: 90%)
+- **Total Orders**: Order volume tracking
+- **Avg Delivery Time**: Speed metric in days
+- **Late Deliveries**: Absolute count of failures (target: <125)
+
+**Trend Analysis (Middle Row)**
+- **Daily OTIF Trend**: Line chart showing performance over time with target line and performance zones
+- **Carrier Performance**: Horizontal bar chart ranking carriers by OTIF rate with color coding
+
+**Operational Details (Bottom Row)**
+- **Lane Performance**: Bottom 10 shipping routes by OTIF rate
+- **Geographic Performance**: Map showing OTIF rates by customer location
+- **Service Level Split**: Performance comparison between Standard and Express service
+
+### Key Features
+
+- **Color-coded performance**: Green (≥90%), Orange (85-90%), Red (<85%)
+- **Interactive filtering**: Click any chart element to filter the entire dashboard
+- **Reference lines**: 90% OTIF target visible across relevant charts
+- **Drill-down capability**: From aggregated metrics to order-line details
+
+### Data Source
+
+The dashboard connects to the custom SQL query in `08_custom_sql_tableau.sql`, which joins:
+- Order line delivery status (base KPI view)
+- Customer, product, and service level dimensions
+- Shipment and carrier information
+- Geographic lane data
+
+### Insights Delivered
+
+1. **Executive View**: Quick health check via 4 KPI cards
+2. **Trend Identification**: Is performance improving or declining?
+3. **Root Cause Analysis**: Which carriers, lanes, or services drive failures?
+4. **Geographic Patterns**: Are certain regions underperforming?
+5. **Operational Action**: Which specific routes need attention?
 
 ---
 
@@ -251,7 +274,7 @@ Proactive data quality checks ensure trustworthy metrics:
 ### Prerequisites
 
 - MySQL 8.0 or higher
-- Tableau Desktop (for visualization)
+- Tableau Desktop 2021.1 or higher (for dashboard visualization)
 
 ### Quick Start
 
@@ -278,7 +301,17 @@ mysql -u <user> -p <database> < sql/06_sample_data.sql
 
 # 7. Create Tableau views (optional)
 mysql -u <user> -p <database> < sql/07_tableau_views.sql
+
+# 8. Open Tableau and connect using the custom SQL query
+# See sql/08_custom_sql_tableau.sql
 ```
+
+### Tableau Dashboard Setup
+
+1. Open Tableau Desktop
+2. Connect to MySQL database
+3. Use Custom SQL query from `sql/08_custom_sql_tableau.sql`
+4. Build visualizations or import the provided workbook
 
 ---
 
@@ -292,7 +325,7 @@ The `06_sample_data.sql` script generates realistic test data:
 | Order Lines | ~1,890 |
 | Shipments | ~1,009 |
 | Tracking Events | ~5,045 |
-| Date Range | 21 days |
+| Date Range | 21 days (2025-01-01 to 2025-01-21) |
 | OTIF Distribution | ~85% on-time, ~10% one day late, ~5% two+ days late |
 
 ### Configuration
@@ -306,67 +339,10 @@ SET @orders_per_day = 50;
 
 ---
 
-## Sample Queries
-
-### Daily OTIF Trend
-
-```sql
-SELECT 
-  promised_delivery_date,
-  order_lines,
-  otif_lines,
-  CONCAT(ROUND(otif_rate * 100, 1), '%') AS otif_pct
-FROM vw_kpi_otif
-ORDER BY promised_delivery_date;
-```
-
-### Worst Performing Carriers
-
-```sql
-SELECT 
-  carrier_name,
-  order_lines,
-  CONCAT(ROUND(otif_rate * 100, 1), '%') AS otif_pct
-FROM vw_carrier_performance
-ORDER BY otif_rate ASC
-LIMIT 5;
-```
-
-### Data Quality Health Check
-
-```sql
-SELECT * FROM dq_kpi_risk_summary;
-```
-
----
-
-## Sample Results
-
-### Carrier Performance
-| carrier_name | order_lines | otif_lines | otif_rate |
-|--------------|-------------|------------|-----------|
-| DHL          | 280         | 272        | 0.9714    |
-| UPS          | 258         | 250        | 0.9690    |
-| POSTNL       | 254         | 245        | 0.9646    |
-| DPD          | 350         | 308        | 0.8800    |
-| GLS          | 326         | 285        | 0.8742    |
-| BPOST        | 350         | 304        | 0.8686    |
-
-### Warehouse Performance
-| warehouse_name | order_lines | otif_lines | otif_rate |
-|----------------|-------------|------------|-----------|
-| WH_NL_01       | 280         | 272        | 0.9714    |
-| WH_BE_01       | 258         | 250        | 0.9690    |
-| WH_NL_03       | 254         | 245        | 0.9646    |
-| WH_NL_02       | 350         | 308        | 0.8800    |
-| WH_NL_04       | 326         | 285        | 0.8742    |
-| WH_DE_01       | 350         | 304        | 0.8686    |
-
----
-
 ## Project Structure
 
 ```
+delivery-performance-analytics/
 ├── sql/
 │   ├── 01_schema.sql              # Table definitions (dimensions + facts)
 │   ├── 02_seed_dimensions.sql     # Reference data (dates, carriers, warehouses)
@@ -374,11 +350,14 @@ SELECT * FROM dq_kpi_risk_summary;
 │   ├── 04_kpi_views.sql           # Analytics views for OTIF metrics
 │   ├── 05_data_quality_checks.sql # Data quality validation views
 │   ├── 06_sample_data.sql         # Sample data generator
-│   └── 07_tableau_views.sql       # Denormalized views for Tableau
+│   ├── 07_tableau_views.sql       # Denormalized views for Tableau
+│   └── 08_custom_sql_tableau.sql  # Custom SQL query for Tableau connection
+├── assets/
+│   └── dashboard_screenshot.png   # Dashboard preview image
 ├── tableau/
-│   └── delivery_dashboard.twbx    # Tableau workbook
-├── diagrams/
-│   └── architecture.png
+│   └── delivery_dashboard.twbx    # Tableau packaged workbook
+├── docs/
+│   └── dashboard_guide.md         # Dashboard user guide
 └── README.md
 ```
 
@@ -391,6 +370,8 @@ SELECT * FROM dq_kpi_risk_summary;
 - [ ] Add time-to-delivery metrics (average days early/late)
 - [ ] Build exception reporting for late deliveries
 - [ ] Add carrier cost analysis dimensions
+- [ ] Implement real-time dashboard refresh via Tableau Server
+- [ ] Add predictive analytics for at-risk shipments
 
 ---
 
