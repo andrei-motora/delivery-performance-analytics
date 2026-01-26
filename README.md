@@ -207,7 +207,7 @@ END AS is_otif
 
 ## Tableau Dashboard
 
-![Dashboard Screenshot](assets/OTIF_dashboard.png)
+![Dashboard Screenshot](dashboards/OTIF_dashboard.png)
 
 An interactive dashboard providing executive KPIs and operational insights for delivery performance analysis.
 
