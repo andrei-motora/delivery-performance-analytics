@@ -207,7 +207,8 @@ END AS is_otif
 
 ## Tableau Dashboard
 
-![Dashboard Screenshot](dashboards/OTIF_dashboard.png)
+<img width="600" height="350" alt="OTIF_dashboard" src="https://github.com/user-attachments/assets/195b2196-c575-438c-9030-454c637ff268" />
+
 
 An interactive dashboard providing executive KPIs and operational insights for delivery performance analysis.
 
